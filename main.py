@@ -25,7 +25,8 @@ def main(page: ft.Page):
     page.title = "Inversiones G.L."
     page.theme_mode = "light"
     page.scroll = "adaptive"
-    page.padding = 20
+    # MEJORA 1: Agregamos padding inferior de 50 para que no pegue con los botones del Honor
+    page.padding = ft.padding.only(top=20, left=20, right=20, bottom=50) 
     init_db()
 
     PIN_CORRECTO = "2026"
@@ -74,7 +75,7 @@ def main(page: ft.Page):
                             ft.Column([ft.Text("Total en Calle", size=12), ft.Text(f"${total_calle:.2f}", size=20, weight="bold", color="green")], horizontal_alignment="center"),
                         ], alignment="center", spacing=30)
                     ], horizontal_alignment="center"),
-                    bgcolor="#f0f4f8", padding=15, border_radius=15, border=ft.border.all(1, "#d1d9e0")
+                    bgcolor="#f04f8", padding=15, border_radius=15, border=ft.border.all(1, "#d1d9e0")
                 ),
                 
                 ft.Divider(height=20, color="transparent"),
@@ -87,7 +88,35 @@ def main(page: ft.Page):
         container_principal.controls.clear()
         page.update()
 
-    # --- LÓGICA DE WHATSAPP ---
+    # --- MEJORA 2: NUEVA PANTALLA DE COBRO INDIVIDUAL ---
+    def ir_a_pantalla_cobro(nombre, telefono, monto):
+        page.controls.clear()
+        page.add(
+            ft.Column([
+                ft.TextButton("< VOLVER A LISTA", on_click=mostrar_cobros),
+                ft.Container(height=20),
+                ft.Icon(ft.icons.MONETIZATION_ON, size=50, color="green"),
+                ft.Text(f"Cobrar a: {nombre}", size=24, weight="bold"),
+                ft.Text(f"Monto pendiente: ${monto:.2f}", size=20, color="green"),
+                ft.Divider(height=30),
+                ft.Text("Selecciona una acción:", size=16, color="grey"),
+                ft.ElevatedButton(
+                    "ENVIAR RECORDATORIO WHATSAPP", 
+                    icon=ft.icons.SEND,
+                    on_click=lambda _: abrir_whatsapp(nombre, telefono, monto),
+                    width=300, height=60, bgcolor="green", color="white"
+                ),
+                ft.Container(height=10),
+                ft.ElevatedButton(
+                    "NOTIFICAR COBRO REALIZADO", 
+                    icon=ft.icons.CHECK_CIRCLE,
+                    on_click=lambda _: page.show_snack_bar(ft.SnackBar(ft.Text("Cobro registrado internamente"))),
+                    width=300, height=60
+                ),
+            ], horizontal_alignment="center")
+        )
+        page.update()
+
     def abrir_whatsapp(nombre, numero, monto):
         mensaje = f"Hola {nombre}, te recuerda Elian Garcia (Inversiones G.L.) el pago mensual de ${monto:.2f}."
         texto_url = urllib.parse.quote(mensaje)
@@ -100,12 +129,7 @@ def main(page: ft.Page):
         
         url_final = f"https://api.whatsapp.com/send?phone={num_limpio}&text={texto_url}"
         page.launch_url(url_final)
-        
-        page.snack_bar = ft.SnackBar(ft.Text("Abriendo chat de WhatsApp..."))
-        page.snack_bar.open = True
-        page.update()
 
-    # --- SEMÁFORO ---
     def calcular_semaforo(fecha_str):
         try:
             fecha_reg = datetime.strptime(fecha_str, "%d/%m/%Y")
@@ -132,8 +156,9 @@ def main(page: ft.Page):
                         ft.Text(f"C.I: {r[3]} | Tel: {r[4]}", size=13),
                         ft.Text(f"Vence: {r[5]}", size=11, color="black54"),
                         ft.Row([
-                            ft.Text(f"${r[2]:.2f} | {r[2]*tasa:,.2f} Bs.", color="blue", weight="bold", expand=True),
-                            ft.TextButton("COBRAR", on_click=lambda e, n=r[1], t=r[4], m=r[2]: abrir_whatsapp(n, t, m), style=ft.ButtonStyle(color="green")),
+                            ft.Text(f"${r[2]:.2f}", color="blue", weight="bold", expand=True),
+                            # MEJORA 3: El botón ahora llama a la nueva pantalla dedicada
+                            ft.TextButton("COBRAR", on_click=lambda e, n=r[1], t=r[4], m=r[2]: ir_a_pantalla_cobro(n, t, m), style=ft.ButtonStyle(color="green")),
                             ft.TextButton("BORRAR", on_click=lambda e, i=r[0]: borrar_pago(i), style=ft.ButtonStyle(color="red")),
                         ])
                     ]),
@@ -142,6 +167,8 @@ def main(page: ft.Page):
             )
         conn.close()
         page.update()
+
+    # ... (Resto de funciones registrar_pago, borrar_pago, calcular_totales igual) ...
 
     def registrar_pago(e):
         if txt_nombre.value and txt_monto.value:
@@ -177,7 +204,6 @@ def main(page: ft.Page):
         lbl_total_bs.value = f"{total * tasa:,.2f} Bs."
         page.update()
 
-    # --- VISTAS ---
     container_principal = ft.Column(expand=True, horizontal_alignment="center")
 
     def mostrar_registro(e):
@@ -190,6 +216,8 @@ def main(page: ft.Page):
         container_principal.controls.append(txt_monto)
         container_principal.controls.append(txt_tasa)
         container_principal.controls.append(ft.ElevatedButton("GUARDAR", on_click=registrar_pago, width=300, height=50))
+        # Espacio final para que el botón no quede pegado abajo
+        container_principal.controls.append(ft.Container(height=40)) 
         page.update()
 
     def mostrar_cobros(e):
@@ -203,10 +231,11 @@ def main(page: ft.Page):
         )
         container_principal.controls.append(ft.Divider(height=10))
         container_principal.controls.append(col_lista)
+        # Espacio final
+        container_principal.controls.append(ft.Container(height=40))
         actualizar_lista()
         calcular_totales()
 
-    # --- PANTALLA DE LOGIN (CORREGIDA) ---
     def validar_pin(e):
         if txt_pin.value == PIN_CORRECTO:
             ir_menu_principal(None)
@@ -218,13 +247,6 @@ def main(page: ft.Page):
     
     login_screen = ft.Column([
         ft.Container(height=40),
-        # CORRECCIÓN AQUÍ: Usamos fit como texto directo para evitar el error de atributo
-        ft.Image(
-            src=r"C:\Users\Garcia\Pictures\imagen.png", 
-            width=220,
-            height=220,
-            fit="contain", 
-        ),
         ft.Text("INVERSIONES G.L.", size=30, weight="bold", color="blue"),
         ft.Text("Bienvenido", size=16, color="grey"),
         ft.Container(height=10),
