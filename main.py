@@ -2,7 +2,6 @@ import flet as ft
 import sqlite3
 from datetime import datetime
 import urllib.parse
-import webbrowser
 
 # === CONFIGURACIÓN DE BASE DE DATOS CON SUPER PARCHE ===
 def init_db():
@@ -63,7 +62,6 @@ def main(page: ft.Page):
     txt_cedula = ft.TextField(label="Cédula", border_radius=10, keyboard_type="number")
     txt_telefono = ft.TextField(label="Teléfono", border_radius=10, keyboard_type="phone")
     txt_monto = ft.TextField(label="Monto Prestado ($)", border_radius=10, keyboard_type="number")
-    # NUEVO CAMPO: Interés Manual
     txt_interes = ft.TextField(label="Interés (%)", value="30", border_radius=10, keyboard_type="number")
     txt_tasa = ft.TextField(label="Tasa BCV (Bs)", value="48.50", border_radius=10, keyboard_type="number")
     txt_nuevo_capital = ft.TextField(label="Capital Base ($)", border_radius=10, keyboard_type="number", width=250)
@@ -87,6 +85,7 @@ def main(page: ft.Page):
         conn.close()
         return float(res[0]), float(res[1])
 
+    # CORRECCIÓN: Uso de page.launch_url para compatibilidad móvil
     def enviar_whatsapp(nombre, telefono, monto, tipo, int_aplicado="30"):
         num = "".join(filter(str.isdigit, str(telefono)))
         if not num.startswith("58"): num = "58" + num.lstrip("0")
@@ -112,12 +111,13 @@ def main(page: ft.Page):
                 "📱 0412-0495246\n"
                 "🆔 CI: 28.589.939"
             )
-        webbrowser.open(f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}")
+        # page.launch_url es mucho más estable en Android/iOS que webbrowser
+        url = f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}"
+        page.launch_url(url)
 
     def registrar_pago(e):
         if txt_nombre.value and txt_monto.value:
             m_p = float(txt_monto.value)
-            # Lógica con interés manual
             int_val = float(txt_interes.value or 30)
             m_f = m_p * (1 + (int_val / 100))
             
@@ -129,6 +129,8 @@ def main(page: ft.Page):
             cursor.execute("INSERT INTO prestamos (cliente, cedula, telefono, capital, total_usd, fecha) VALUES (?,?,?,?,?,?)",
                            (txt_nombre.value, txt_cedula.value, txt_telefono.value, m_p, m_f, hoy))
             conn.commit(); conn.close()
+            
+            # Enviar WhatsApp antes de cambiar de pantalla
             enviar_whatsapp(txt_nombre.value, txt_telefono.value, m_f, "comprobante", int_aplicado=str(int_val))
             ir_menu_principal()
 
@@ -205,7 +207,6 @@ def main(page: ft.Page):
 
     def mostrar_registro(e):
         page.controls.clear()
-        # Se añade txt_interes a la vista
         page.add(ft.Column([ft.TextButton("VOLVER", on_click=ir_menu_principal), ft.Text("REGISTRO", size=22, weight="bold"), txt_nombre, txt_cedula, txt_telefono, txt_monto, txt_interes, txt_tasa, ft.ElevatedButton("GUARDAR", on_click=registrar_pago, width=page.width, height=50, bgcolor="blue700")], horizontal_alignment="center"))
         page.update()
 
