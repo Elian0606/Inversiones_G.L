@@ -34,7 +34,6 @@ def init_db():
         )
     """)
     
-    # Parche para columnas faltantes
     columnas_finanzas = [col[1] for col in cursor.execute("PRAGMA table_info(finanzas)")]
     if "capital_inicial" not in columnas_finanzas:
         try:
@@ -53,7 +52,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.title = "Inversiones G.L."
     page.scroll = "adaptive"
-    page.padding = ft.padding.only(top=10, left=15, right=15, bottom=60)
+    page.padding = ft.padding.only(top=60, left=15, right=15, bottom=60)
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     
     init_db()
@@ -64,6 +63,8 @@ def main(page: ft.Page):
     txt_cedula = ft.TextField(label="Cédula", border_radius=10, keyboard_type="number")
     txt_telefono = ft.TextField(label="Teléfono", border_radius=10, keyboard_type="phone")
     txt_monto = ft.TextField(label="Monto Prestado ($)", border_radius=10, keyboard_type="number")
+    # NUEVO CAMPO: Interés Manual
+    txt_interes = ft.TextField(label="Interés (%)", value="30", border_radius=10, keyboard_type="number")
     txt_tasa = ft.TextField(label="Tasa BCV (Bs)", value="48.50", border_radius=10, keyboard_type="number")
     txt_nuevo_capital = ft.TextField(label="Capital Base ($)", border_radius=10, keyboard_type="number", width=250)
     
@@ -86,19 +87,17 @@ def main(page: ft.Page):
         conn.close()
         return float(res[0]), float(res[1])
 
-    # === WHATSAPP CON EMOJIS CORREGIDOS ===
-    def enviar_whatsapp(nombre, telefono, monto, tipo):
+    def enviar_whatsapp(nombre, telefono, monto, tipo, int_aplicado="30"):
         num = "".join(filter(str.isdigit, str(telefono)))
         if not num.startswith("58"): num = "58" + num.lstrip("0")
         tasa_bcv = float(txt_tasa.value or 48.50)
         
         if tipo == "comprobante":
-            # Usamos códigos que WhatsApp entiende mejor
             mensaje = (
                 "💰 *INVERSIONES G.L.*\n\n"
                 f"👤 *Cliente:* {nombre}\n"
                 f"💵 *Préstamo:* ${monto:.2f}\n"
-                "📈 *Interés:* 30%\n"
+                f"📈 *Interés:* {int_aplicado}%\n"
                 "📝 *Nota:* Pagos a tasa BCV."
             )
         else:
@@ -113,13 +112,15 @@ def main(page: ft.Page):
                 "📱 0412-0495246\n"
                 "🆔 CI: 28.589.939"
             )
-        
         webbrowser.open(f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}")
 
     def registrar_pago(e):
         if txt_nombre.value and txt_monto.value:
             m_p = float(txt_monto.value)
-            m_f = m_p * 1.30
+            # Lógica con interés manual
+            int_val = float(txt_interes.value or 30)
+            m_f = m_p * (1 + (int_val / 100))
+            
             hoy = datetime.now().strftime("%d/%m/%Y")
             cap_disp, _ = obtener_finanzas()
             conn = sqlite3.connect("inversiones_gl.db")
@@ -128,10 +129,9 @@ def main(page: ft.Page):
             cursor.execute("INSERT INTO prestamos (cliente, cedula, telefono, capital, total_usd, fecha) VALUES (?,?,?,?,?,?)",
                            (txt_nombre.value, txt_cedula.value, txt_telefono.value, m_p, m_f, hoy))
             conn.commit(); conn.close()
-            enviar_whatsapp(txt_nombre.value, txt_telefono.value, m_f, "comprobante")
+            enviar_whatsapp(txt_nombre.value, txt_telefono.value, m_f, "comprobante", int_aplicado=str(int_val))
             ir_menu_principal()
 
-    # === VISTAS ===
     def ir_menu_principal(e=None):
         page.controls.clear()
         cap_disp, cap_init = obtener_finanzas()
@@ -141,12 +141,11 @@ def main(page: ft.Page):
         res = cursor.fetchone()
         inv_calle = float(res[0]) if res[0] else 0.0
         conn.close()
-
         ganancia_neta = (cap_disp + inv_calle) - cap_init
 
         page.add(
             ft.Column([
-                ft.Row([btn_tema, ft.TextButton("SALIR", on_click=lambda _: cargar_login(), style=ft.ButtonStyle(color="red"))], alignment="space_between"),
+                ft.Row([btn_tema, ft.TextButton("SALIR", on_click=lambda _: cargar_login(), style=ft.ButtonStyle(color="red"))], alignment="spaceBetween"),
                 ft.Text("INVERSIONES G.L.", size=28, weight="bold", color="blue400"),
                 ft.Container(
                     content=ft.Column([
@@ -198,7 +197,6 @@ def main(page: ft.Page):
         conn.commit(); conn.close(); ir_menu_principal()
 
     def reset_confirmar(g):
-        hoy = datetime.now().strftime("%d/%m/%Y")
         conn = sqlite3.connect("inversiones_gl.db")
         cursor = conn.cursor()
         cursor.execute("DELETE FROM prestamos")
@@ -207,7 +205,8 @@ def main(page: ft.Page):
 
     def mostrar_registro(e):
         page.controls.clear()
-        page.add(ft.Column([ft.TextButton("VOLVER", on_click=ir_menu_principal), ft.Text("REGISTRO", size=22, weight="bold"), txt_nombre, txt_cedula, txt_telefono, txt_monto, txt_tasa, ft.ElevatedButton("GUARDAR", on_click=registrar_pago, width=page.width, height=50, bgcolor="blue700")], horizontal_alignment="center"))
+        # Se añade txt_interes a la vista
+        page.add(ft.Column([ft.TextButton("VOLVER", on_click=ir_menu_principal), ft.Text("REGISTRO", size=22, weight="bold"), txt_nombre, txt_cedula, txt_telefono, txt_monto, txt_interes, txt_tasa, ft.ElevatedButton("GUARDAR", on_click=registrar_pago, width=page.width, height=50, bgcolor="blue700")], horizontal_alignment="center"))
         page.update()
 
     def mostrar_cobros(e):
@@ -243,18 +242,19 @@ def main(page: ft.Page):
         if txt_pin.value == PIN_CORRECTO: ir_menu_principal()
         else: txt_pin.error_text = "ERROR"; page.update()
 
-    txt_pin = ft.TextField(label="PIN", password=True, text_align="center", keyboard_type="number", width=200)
+    txt_pin = ft.TextField(label="PIN", password=True, text_align="center", keyboard_type="number", width=220)
     
     def cargar_login():
         page.controls.clear()
         page.add(
             ft.Column([
                 ft.Container(height=80),
-                ft.Text("G.L.", size=60, weight="bold", color="blue400"),
-                ft.Text("Bienvenido, Administrador", size=16, color="grey700", italic=True),
+                ft.Text("G.L.", size=70, weight="bold", color="blue400"),
+                ft.Text("SISTEMA DE GESTIÓN", size=18, weight="bold"),
+                ft.Text("Bienvenido, Administrador", size=14, color="grey"),
                 ft.Container(height=20),
                 txt_pin, 
-                ft.ElevatedButton("ENTRAR AL SISTEMA", on_click=validar_pin, width=220, height=45)
+                ft.ElevatedButton("ENTRAR AL SISTEMA", on_click=validar_pin, width=220, height=50)
             ], horizontal_alignment="center")
         )
         page.update()
