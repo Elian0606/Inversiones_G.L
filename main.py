@@ -29,7 +29,6 @@ def init_db():
     conn.close()
 
 async def main(page: ft.Page):
-    # CAMBIO 1: Ajuste de scroll y padding para evitar el error de "only"
     page.theme_mode = ft.ThemeMode.DARK
     page.title = "Inversiones G.L."
     page.window_prevent_close = True
@@ -81,23 +80,22 @@ async def main(page: ft.Page):
                 "Saludos, Muy Buenas Tardes. La gerencia de nuestro fondo de inversión le saluda "
                 "y le informa que el día de hoy usted entra con un *PRÉSTAMO ACTIVO* "
                 "bajo la siguiente modalidad:\n\n"
-                f"- *Cliente:* {nombre}\n"
-                f"- *Cédula:* {cedula}\n"
-                f"- *Monto:* ${monto:.2f}\n"
-                f"- *Vencimiento:* {vence}\n"
+                f"[-] *Cliente:* {nombre}\n"
+                f"[-] *Cédula:* {cedula}\n"
+                f"[-] *Monto:* ${monto:.2f}\n"
+                f"[-] *Vencimiento:* {vence}\n"
                 "━━━━━━━━━━━━━━━\n"
-                "! *NOTA:* En caso de no pagar puntual el préstamo total, "
-                "el interés se sumará al capital.\n"
-                f"{datos_pago}"
+                "[!] *NOTA:* En caso de no pagar puntual el préstamo total, "
+                "el interés se sumará al capital."
             )
         else:
             mensaje = (
-                "[*] *INVERSIONES G.L.*\n\n"
-                f"- *Cliente:* {nombre}\n"
-                f"- *Préstamo activo:* ${monto:.2f}\n"
-                f"- *Vencimiento:* {vence}\n"
+                "[*] *INVERSIONES G.L. VIP*\n\n"
+                f"[-] *Cliente:* {nombre}\n"
+                f"[-] *Préstamo activo:* ${monto:.2f}\n"
+                f"[-] *Vencimiento:* {vence}\n"
                 "━━━━━━━━━━━━━━━\n"
-                " *Pagos a tasa BCV del día.*\n"
+                "[V] *Pagos a tasa BCV del día.*\n"
                 "━━━━━━━━━━━━━━━\n"
                 f"{datos_pago}"
             )
@@ -288,6 +286,6 @@ async def main(page: ft.Page):
 
     await cargar_login()
 
-# CAMBIO 2: Cambio de ft.app por ft.run
 if __name__ == "__main__":
     ft.app(target=main)
+    
