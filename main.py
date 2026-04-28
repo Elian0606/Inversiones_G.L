@@ -15,16 +15,8 @@ def init_db():
             capital REAL, total_usd REAL, fecha TEXT, vencimiento TEXT
         )
     """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS finanzas (
-            id INTEGER PRIMARY KEY, capital_disponible REAL, capital_inicial REAL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS historial_ganancias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, monto_ganado REAL, fecha TEXT
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS finanzas (id INTEGER PRIMARY KEY, capital_disponible REAL, capital_inicial REAL)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS historial_ganancias (id INTEGER PRIMARY KEY AUTOINCREMENT, monto_ganado REAL, fecha TEXT)")
     
     columnas = [col[1] for col in cursor.execute("PRAGMA table_info(prestamos)")]
     if "vencimiento" not in columnas:
@@ -37,14 +29,12 @@ def init_db():
     conn.close()
 
 async def main(page: ft.Page):
-    # AJUSTES PARA NOTCH Y PANTALLAS MÓVILES
+    # CAMBIO 1: Ajuste de scroll y padding para evitar el error de "only"
     page.theme_mode = ft.ThemeMode.DARK
     page.title = "Inversiones G.L."
     page.window_prevent_close = True
-    page.scroll = "adaptive"
-    
-    # Padding extra arriba por el Notch y abajo por la barra de gestos
-    page.padding = ft.padding.only(top=50, left=20, right=20, bottom=40)
+    page.scroll = ft.ScrollMode.ADAPTIVE
+    page.padding = ft.Padding(left=20, top=50, right=20, bottom=40)
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     
     init_db()
@@ -52,23 +42,16 @@ async def main(page: ft.Page):
 
     # --- CAMPOS GLOBALES ---
     txt_nombre = ft.TextField(label="Nombre del Cliente", border_radius=12)
-    txt_cedula = ft.TextField(label="Cédula", border_radius=12, keyboard_type="number")
-    txt_telefono = ft.TextField(label="Teléfono", border_radius=12, keyboard_type="phone")
-    txt_monto = ft.TextField(label="Monto Prestado ($)", border_radius=12, keyboard_type="number")
+    txt_cedula = ft.TextField(label="Cédula", border_radius=12, keyboard_type=ft.KeyboardType.NUMBER)
+    txt_telefono = ft.TextField(label="Teléfono", border_radius=12, keyboard_type=ft.KeyboardType.PHONE)
+    txt_monto = ft.TextField(label="Monto Prestado ($)", border_radius=12, keyboard_type=ft.KeyboardType.NUMBER)
     txt_interes = ft.TextField(label="Interés (%)", value="30", border_radius=12)
-    txt_tasa = ft.TextField(label="Tasa BCV (Bs)", value="48.50", border_radius=12, text_align="center")
+    txt_tasa = ft.TextField(label="Tasa BCV (Bs)", value="48.50", border_radius=12, text_align=ft.TextAlign.CENTER)
     txt_nuevo_capital = ft.TextField(label="Capital Base ($)", border_radius=12, width=250)
     
     lbl_total_usd = ft.Text("$ 0.00", size=30, weight="bold")
     lbl_total_bs = ft.Text("0.00 Bs.", size=18, color="grey")
     col_lista = ft.Column(spacing=12, horizontal_alignment="center")
-
-    async def cambiar_tema(e):
-        page.theme_mode = ft.ThemeMode.LIGHT if page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
-        btn_tema.text = "TEMA OSCURO" if page.theme_mode == ft.ThemeMode.LIGHT else "TEMA CLARO"
-        page.update()
-
-    btn_tema = ft.TextButton("TEMA CLARO", on_click=cambiar_tema)
 
     def obtener_finanzas():
         conn = sqlite3.connect("inversiones_gl.db")
@@ -78,36 +61,71 @@ async def main(page: ft.Page):
         conn.close()
         return float(res[0]), float(res[1])
 
-    async def enviar_whatsapp(nombre, telefono, monto, tipo, vence=""):
+    async def enviar_whatsapp(nombre, cedula, telefono, monto, tipo, vence=""):
         num = "".join(filter(str.isdigit, str(telefono)))
         if not num.startswith("58"): num = "58" + num.lstrip("0")
-        tasa_bcv = float(txt_tasa.value or 48.50)
         
+        datos_pago = (
+            "━━━━━━━━━━━━━━━\n"
+            "*DATOS DEL PAGO*\n"
+            "Pago Móvil\n"
+            "Inversiones G L\n"
+            "Mercantil 0105\n"
+            "0412-049-5246\n"
+            "C.I: 28.589.939"
+        )
+
         if tipo == "comprobante":
-            mensaje = f"💰 *INVERSIONES G.L.*\n\n👤 *Cliente:* {nombre}\n💵 *Préstamo:* ${monto:.2f}\n📅 *Vence:* {vence}"
+            mensaje = (
+                "[*] *INVERSIONES G.L. VIP*\n\n"
+                "Saludos, Muy Buenas Tardes. La gerencia de nuestro fondo de inversión le saluda "
+                "y le informa que el día de hoy usted entra con un *PRÉSTAMO ACTIVO* "
+                "bajo la siguiente modalidad:\n\n"
+                f"- *Cliente:* {nombre}\n"
+                f"- *Cédula:* {cedula}\n"
+                f"- *Monto:* ${monto:.2f}\n"
+                f"- *Vencimiento:* {vence}\n"
+                "━━━━━━━━━━━━━━━\n"
+                "! *NOTA:* En caso de no pagar puntual el préstamo total, "
+                "el interés se sumará al capital.\n"
+                f"{datos_pago}"
+            )
         else:
-            mensaje = f"🔔 *COBRO*\n👤 *Cliente:* {nombre}\n💰 *Pagar:* ${monto:.2f}\n📊 *Tasa:* {tasa_bcv:.2f} Bs.\n📅 *Vence:* {vence}"
+            mensaje = (
+                "[*] *INVERSIONES G.L.*\n\n"
+                f"- *Cliente:* {nombre}\n"
+                f"- *Préstamo activo:* ${monto:.2f}\n"
+                f"- *Vencimiento:* {vence}\n"
+                "━━━━━━━━━━━━━━━\n"
+                " *Pagos a tasa BCV del día.*\n"
+                "━━━━━━━━━━━━━━━\n"
+                f"{datos_pago}"
+            )
         
-        await page.launch_url(f"https://wa.me/{num}?text={urllib.parse.quote(mensaje)}")
+        texto_final = urllib.parse.quote(mensaje)
+        url_whatsapp = f"https://api.whatsapp.com/send?phone={num}&text={texto_final}"
+        await page.launch_url(url_whatsapp)
 
     async def registrar_pago(e):
         if txt_nombre.value and txt_monto.value:
-            m_p = float(txt_monto.value)
-            int_val = float(txt_interes.value or 30)
-            m_f = m_p * (1 + (int_val / 100))
-            vence_str = (datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")
-            cap_disp, _ = obtener_finanzas()
-            
-            conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
-            cursor.execute("UPDATE finanzas SET capital_disponible = ?", (cap_disp - m_p,))
-            cursor.execute("INSERT INTO prestamos (cliente, cedula, telefono, capital, total_usd, fecha, vencimiento) VALUES (?,?,?,?,?,?,?)",
-                           (txt_nombre.value, txt_cedula.value, txt_telefono.value, m_p, m_f, datetime.now().strftime("%d/%m/%Y"), vence_str))
-            conn.commit(); conn.close()
-            
-            n_temp, t_temp = txt_nombre.value, txt_telefono.value
-            txt_nombre.value = ""; txt_cedula.value = ""; txt_telefono.value = ""; txt_monto.value = ""
-            await enviar_whatsapp(n_temp, t_temp, m_f, "comprobante", vence=vence_str)
-            await ir_menu_principal()
+            try:
+                m_p = float(txt_monto.value)
+                m_f = m_p * (1 + (float(txt_interes.value or 30) / 100))
+                v_str = (datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")
+                cap_d, _ = obtener_finanzas()
+                
+                conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
+                cursor.execute("UPDATE finanzas SET capital_disponible = ?", (cap_d - m_p,))
+                cursor.execute("INSERT INTO prestamos (cliente, cedula, telefono, capital, total_usd, fecha, vencimiento) VALUES (?,?,?,?,?,?,?)",
+                               (txt_nombre.value, txt_cedula.value, txt_telefono.value, m_p, m_f, datetime.now().strftime("%d/%m/%Y"), v_str))
+                conn.commit(); conn.close()
+                
+                n, c, t = txt_nombre.value, txt_cedula.value, txt_telefono.value
+                txt_nombre.value = ""; txt_cedula.value = ""; txt_telefono.value = ""; txt_monto.value = ""
+                
+                await enviar_whatsapp(n, c, t, m_f, "comprobante", vence=v_str)
+                await ir_menu_principal()
+            except: pass
 
     async def liquidar_final(idx, cap_p, monto_t):
         ganancia = monto_t - cap_p
@@ -139,49 +157,28 @@ async def main(page: ft.Page):
         ganancia_total = float(cursor.fetchone()[0] or 0.0)
         conn.close()
 
+        async def cambiar_tema(e):
+            page.theme_mode = ft.ThemeMode.LIGHT if page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
+            btn_tema.text = "TEMA OSCURO" if page.theme_mode == ft.ThemeMode.LIGHT else "TEMA CLARO"
+            page.update()
+
+        btn_tema = ft.TextButton("TEMA CLARO", on_click=cambiar_tema)
+
         page.add(
             ft.Column([
-                # CABECERA LIMPIA
-                ft.Row([
-                    btn_tema, 
-                    ft.TextButton("SALIR", on_click=lambda _: asyncio.create_task(cargar_login()), style=ft.ButtonStyle(color="red"))
-                ], alignment="spaceBetween"),
-                
+                ft.Row([btn_tema, ft.TextButton("SALIR", on_click=lambda _: asyncio.create_task(cargar_login()), style=ft.ButtonStyle(color="red"))], alignment="spaceBetween"),
                 ft.Text("INVERSIONES G.L.", size=28, weight="bold", color="blue400"),
-                
-                # 1. BÓVEDA
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("EN BÓVEDA", size=12, weight="w500"), 
-                        ft.Text(f"$ {cap_disp:.2f}", size=36, weight="bold")
-                    ], horizontal_alignment="center"), 
-                    bgcolor="blue700", padding=20, border_radius=25, width=page.width
-                ),
-
-                # 2. GANANCIAS (DEBAJO DE BÓVEDA)
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("GANANCIAS REALES", size=11, weight="w500"), 
-                        ft.Text(f"$ {ganancia_total:.2f}", size=26, color="green300", weight="bold"), 
-                        ft.TextButton("VER HISTORIAL", on_click=lambda e: asyncio.create_task(mostrar_historial(e)))
-                    ], horizontal_alignment="center", spacing=5), 
-                    bgcolor="white10", padding=15, border_radius=20, width=page.width
-                ),
-                
-                # 3. ESTADÍSTICAS RÁPIDAS
+                ft.Container(content=ft.Column([ft.Text("EN BÓVEDA", size=12, weight="w500"), ft.Text(f"$ {cap_disp:.2f}", size=36, weight="bold")], horizontal_alignment="center"), bgcolor="blue700", padding=20, border_radius=25, width=page.width),
+                ft.Container(content=ft.Column([ft.Text("GANANCIAS REALES", size=11, weight="w500"), ft.Text(f"$ {ganancia_total:.2f}", size=26, color="green300", weight="bold"), ft.TextButton("VER HISTORIAL", on_click=lambda e: asyncio.create_task(mostrar_historial(e)))], horizontal_alignment="center", spacing=5), bgcolor="white10", padding=15, border_radius=20, width=page.width),
                 ft.Row([
                     ft.Container(content=ft.Column([ft.Text("CLIENTES", size=10), ft.Text(f"{num_clientes}", size=20, weight="bold")], horizontal_alignment="center"), bgcolor="white5", padding=15, border_radius=20, expand=True),
                     ft.Container(content=ft.Column([ft.Text("EN CALLE", size=10), ft.Text(f"$ {en_calle:.2f}", size=20, color="orange400", weight="bold")], horizontal_alignment="center"), bgcolor="white5", padding=15, border_radius=20, expand=True),
                 ], spacing=10),
-
                 ft.Divider(height=10, color="transparent"),
-
-                # 4. BOTONES DE ACCIÓN (GRANDES PARA PULGAR)
                 ft.Row([
                     ft.ElevatedButton("NUEVO", on_click=lambda e: asyncio.create_task(mostrar_registro(e)), expand=True, height=75, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=15))),
                     ft.ElevatedButton("COBRAR", on_click=lambda e: asyncio.create_task(mostrar_cobros(e)), expand=True, height=75, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=15))),
                 ], spacing=10),
-
                 ft.TextButton("AJUSTES DEL SISTEMA", on_click=lambda e: asyncio.create_task(mostrar_config(e)), style=ft.ButtonStyle(color="grey")),
             ], horizontal_alignment="center", spacing=15)
         )
@@ -191,7 +188,7 @@ async def main(page: ft.Page):
         page.controls.clear()
         col_lista.controls.clear()
         conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
-        cursor.execute("SELECT id, cliente, total_usd, telefono, vencimiento, capital FROM prestamos ORDER BY id DESC")
+        cursor.execute("SELECT id, cliente, cedula, telefono, vencimiento, total_usd, capital FROM prestamos ORDER BY id DESC")
         rows = cursor.fetchall()
         for r in rows:
             col_lista.controls.append(
@@ -200,16 +197,15 @@ async def main(page: ft.Page):
                         ft.Text(f"{r[1]}", weight="bold", size=16),
                         ft.Text(f"Vence: {r[4]}", size=12, color="grey"),
                         ft.Row([
-                            ft.Text(f"${r[2]:.2f}", expand=True, color="blue400", size=18, weight="bold"),
-                            ft.TextButton("WS", on_click=lambda e, n=r[1], t=r[3], m=r[2], v=r[4]: asyncio.create_task(enviar_whatsapp(n, t, m, "cobro", v))),
-                            ft.TextButton("PAGÓ", on_click=lambda e, i=r[0], c=r[5], m=r[2]: asyncio.create_task(liquidar_final(i, c, m)), style=ft.ButtonStyle(color="green")),
-                            ft.TextButton("X", on_click=lambda e, i=r[0], c=r[5]: asyncio.create_task(eliminar_prestamo(i, c)), style=ft.ButtonStyle(color="red")),
+                            ft.Text(f"${r[5]:.2f}", expand=True, color="blue400", size=18, weight="bold"),
+                            ft.TextButton("WS", on_click=lambda e, n=r[1], c=r[2], t=r[3], m=r[5], v=r[4]: asyncio.create_task(enviar_whatsapp(n, c, t, m, "cobro", v))),
+                            ft.TextButton("PAGÓ", on_click=lambda e, i=r[0], cap=r[6], tot=r[5]: asyncio.create_task(liquidar_final(i, cap, tot)), style=ft.ButtonStyle(color="green")),
+                            ft.TextButton("X", on_click=lambda e, i=r[0], cap=r[6]: asyncio.create_task(eliminar_prestamo(i, cap)), style=ft.ButtonStyle(color="red")),
                         ])
                     ]), bgcolor="white5", padding=15, border_radius=15
                 )
             )
-        
-        total_c = sum(float(r[2]) for r in rows)
+        total_c = sum(float(r[5]) for r in rows)
         lbl_total_usd.value = f"TOTAL: $ {total_c:.2f}"
         lbl_total_bs.value = f"{(total_c * float(txt_tasa.value)):,.2f} Bs."
         
@@ -224,7 +220,7 @@ async def main(page: ft.Page):
 
     async def mostrar_historial(e):
         page.controls.clear()
-        col_h = ft.Column(spacing=10, scroll="auto", height=500)
+        col_h = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, height=500)
         conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
         cursor.execute("SELECT monto_ganado, fecha FROM historial_ganancias ORDER BY id DESC")
         for r in cursor.fetchall():
@@ -252,10 +248,12 @@ async def main(page: ft.Page):
         page.update()
 
     async def actualizar_base(e):
-        v = float(txt_nuevo_capital.value or 0)
-        conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
-        cursor.execute("UPDATE finanzas SET capital_inicial = ?, capital_disponible = ?", (v, v))
-        conn.commit(); conn.close(); await ir_menu_principal()
+        try:
+            v = float(txt_nuevo_capital.value or 0)
+            conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
+            cursor.execute("UPDATE finanzas SET capital_inicial = ?, capital_disponible = ?", (v, v))
+            conn.commit(); conn.close(); await ir_menu_principal()
+        except: pass
 
     async def reset_sistema(e):
         conn = sqlite3.connect("inversiones_gl.db"); cursor = conn.cursor()
@@ -275,7 +273,7 @@ async def main(page: ft.Page):
 
     async def cargar_login():
         page.controls.clear()
-        txt_pin = ft.TextField(label="PIN DE ACCESO", password=True, text_align="center", keyboard_type="number", width=250, border_radius=15)
+        txt_pin = ft.TextField(label="PIN DE ACCESO", password=True, text_align="center", keyboard_type=ft.KeyboardType.NUMBER, width=250, border_radius=15)
         page.add(
             ft.Column([
                 ft.Container(height=80),
@@ -290,4 +288,6 @@ async def main(page: ft.Page):
 
     await cargar_login()
 
-ft.app(target=main)
+# CAMBIO 2: Cambio de ft.app por ft.run
+if __name__ == "__main__":
+    ft.app(target=main)
