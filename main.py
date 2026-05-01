@@ -76,26 +76,26 @@ async def main(page: ft.Page):
 
         if tipo == "comprobante":
             mensaje = (
-                "[*] *INVERSIONES G.L. VIP*\n\n"
+                "[*] *INVERSIONES G.L *\n\n"
                 "Saludos, Muy Buenas Tardes. La gerencia de nuestro fondo de inversión le saluda "
                 "y le informa que el día de hoy usted entra con un *PRÉSTAMO ACTIVO* "
                 "bajo la siguiente modalidad:\n\n"
-                f"[-] *Cliente:* {nombre}\n"
-                f"[-] *Cédula:* {cedula}\n"
-                f"[-] *Monto:* ${monto:.2f}\n"
-                f"[-] *Vencimiento:* {vence}\n"
+                f"- *Cliente:* {nombre}\n"
+                f"- *Cédula:* {cedula}\n"
+                f"- *Monto:* ${monto:.2f}\n"
+                f"- *Vencimiento:* {vence}\n"
                 "━━━━━━━━━━━━━━━\n"
-                "[!] *NOTA:* En caso de no pagar puntual el préstamo total, "
+                "! *NOTA:* En caso de no pagar puntual el préstamo total, "
                 "el interés se sumará al capital."
             )
         else:
             mensaje = (
-                "[*] *INVERSIONES G.L. VIP*\n\n"
-                f"[-] *Cliente:* {nombre}\n"
-                f"[-] *Préstamo activo:* ${monto:.2f}\n"
-                f"[-] *Vencimiento:* {vence}\n"
+                " *INVERSIONES G.L.*\n\n"
+                f"- *Cliente:* {nombre}\n"
+                f"- *Préstamo activo:* ${monto:.2f}\n"
+                f"- *Vencimiento:* {vence}\n"
                 "━━━━━━━━━━━━━━━\n"
-                "[V] *Pagos a tasa BCV del día.*\n"
+                "V *Pagos a tasa BCV del día.*\n"
                 "━━━━━━━━━━━━━━━\n"
                 f"{datos_pago}"
             )
